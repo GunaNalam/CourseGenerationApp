@@ -1,0 +1,27 @@
+# Copy to config/application.properties for local dev (gitignored — never commit the
+# real one). Spring Boot auto-loads config/application.properties from the working
+# directory on top of the packaged application.yml — no extra library needed, this is
+# native Spring Boot behavior (see application.yml's ${VAR:default} placeholders,
+# which this file overrides directly by setting the final property instead).
+#
+# In real deployments (Render/Vercel), these same settings come from actual OS
+# environment variables instead — see the AUTH0_ISSUER-style names referenced in
+# application.yml and BACKEND_PLAN.md/PROJECT_OVERVIEW.md for that mapping.
+
+spring.datasource.url=jdbc:postgresql://localhost:5433/learnify
+spring.datasource.username=postgres
+spring.datasource.password=postgres
+
+# Issuer needs the trailing slash, e.g. https://your-tenant.auth0.com/
+auth0.issuer=
+auth0.audience=
+
+app.cors.allowed-origins=http://localhost:5173
+
+gemini.api-key=
+apikey.encryption-secret=
+
+youtube.api-key=
+
+# Comma-separated Auth0 `sub` values allowed to hit /api/v1/admin/**
+admin.allowed-subs=

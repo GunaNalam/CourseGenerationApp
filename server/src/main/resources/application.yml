@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: learnify-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/learnify}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      # Managed Postgres providers (Render included) commonly close idle
+      # connections behind their own proxy well before Hikari's own defaults
+      # would consider them stale — Hikari then hands out a dead connection,
+      # which fails and has to reconnect mid-request (the real cost of a fresh
+      # TLS handshake to a remote DB, not the query itself). A keepalive ping
+      # well under that idle window keeps pooled connections genuinely alive.
+      keepalive-time: 30000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate   # schema is owned by Flyway migrations, not Hibernate auto-DDL
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${PORT:8080}
+
+auth0:
+  issuer: ${AUTH0_ISSUER:https://example.auth0.com/}
+  audience: ${AUTH0_AUDIENCE:https://texttolearn-api/}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-3.8-flash}
+  tts-model: ${GEMINI_TTS_MODEL:gemini-2.5-flash-preview-tts}
+  rate-limit:
+    max-requests-per-minute: ${GEMINI_MAX_REQUESTS_PER_MINUTE:5}
+
+pipeline:
+  poll-interval-ms: ${PIPELINE_POLL_INTERVAL_MS:2000}
+
+apikey:
+  encryption-secret: ${API_KEY_ENCRYPTION_SECRET:local-dev-only-insecure-default-secret}
+
+youtube:
+  api-key: ${YOUTUBE_API_KEY:}
+
+admin:
+  allowed-subs: ${ADMIN_ALLOWED_SUBS:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

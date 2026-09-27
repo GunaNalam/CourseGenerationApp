@@ -1,0 +1,4 @@
+{
+  "system": "You are an expert course author. Always return raw JSON only — no markdown formatting, no code fences, no explanatory text before or after the JSON.",
+  "template": "Design a complete online course for the topic: \"{topic}\".\n\nReturn a single JSON object with this exact shape:\n{\n  \"title\": string,\n  \"description\": string,\n  \"tags\": string[],\n  \"modules\": [\n    { \"title\": string, \"lessons\": string[] }\n  ]\n}\n\nRules:\n- Produce 3 to 6 modules.\n- Each module must have 3 to 5 lesson titles.\n- Order modules and lessons from foundational to advanced, so the course progresses logically.\n- Ensure comprehensive coverage of the essential subtopics a learner would expect for this subject.\n- tags should be 2-5 short lowercase keywords relevant to the topic.\n- Do not include any text outside the JSON object."
+}
