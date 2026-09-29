@@ -1,0 +1,949 @@
+openapi: 3.0.3
+info:
+  title: Learnify API
+  description: >
+    AI-powered course generation platform. Every endpoint below requires an
+    Auth0-issued JWT bearer token except /actuator/**, /swagger-ui/**, and
+    /v3/api-docs/**. Admin endpoints additionally require the token's `sub`
+    claim to be in a server-side allowlist (same bearer token, extra
+    application-level authorization check - not a distinct auth scheme).
+  version: 0.1.0
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: courses
+  - name: modules
+  - name: lessons
+  - name: jobs
+  - name: admin
+  - name: api-keys
+
+paths:
+  /courses:
+    post:
+      operationId: createCourse
+      tags: [courses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCourseRequest'
+      responses:
+        '201':
+          description: Course created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: listMyCourses
+      tags: [courses]
+      responses:
+        '200':
+          description: Courses owned by the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CourseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /courses/{id}:
+    get:
+      operationId: getCourse
+      tags: [courses]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: The course
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{id}/export:
+    get:
+      operationId: exportCourse
+      tags: [courses]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Full course tree as a portable JSON export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseExportResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{id}/tree:
+    get:
+      operationId: getCourseTree
+      tags: [courses]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Course with its modules and lessons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseTreeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{courseId}/modules:
+    post:
+      operationId: createModule
+      tags: [modules]
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModuleRequest'
+      responses:
+        '201':
+          description: Module created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      operationId: listModules
+      tags: [modules]
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+      responses:
+        '200':
+          description: Modules for the course
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModuleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{courseId}/modules/{moduleId}/lessons:
+    post:
+      operationId: createLesson
+      tags: [lessons]
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+        - $ref: '#/components/parameters/ModuleIdInPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLessonRequest'
+      responses:
+        '201':
+          description: Lesson created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      operationId: listLessons
+      tags: [lessons]
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+        - $ref: '#/components/parameters/ModuleIdInPath'
+      responses:
+        '200':
+          description: Lesson summaries for the module
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LessonSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{courseId}/modules/{moduleId}/lessons/{lessonId}:
+    get:
+      operationId: getLesson
+      tags: [lessons]
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+        - $ref: '#/components/parameters/ModuleIdInPath'
+        - $ref: '#/components/parameters/LessonIdInPath'
+      responses:
+        '200':
+          description: Full lesson content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateLessonState
+      tags: [lessons]
+      description: >
+        Partial update - only non-null fields are applied, so completed and
+        bookmarked can be toggled independently with the same endpoint.
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+        - $ref: '#/components/parameters/ModuleIdInPath'
+        - $ref: '#/components/parameters/LessonIdInPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLessonStateRequest'
+      responses:
+        '200':
+          description: Updated lesson
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{courseId}/modules/{moduleId}/lessons/{lessonId}/audio:
+    get:
+      operationId: getLessonAudio
+      tags: [lessons]
+      description: Hinglish text-to-speech audio for the lesson.
+      parameters:
+        - $ref: '#/components/parameters/CourseIdInPath'
+        - $ref: '#/components/parameters/ModuleIdInPath'
+        - $ref: '#/components/parameters/LessonIdInPath'
+      responses:
+        '200':
+          description: WAV audio
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/generate:
+    post:
+      operationId: generateCourse
+      tags: [jobs]
+      description: Kicks off the asynchronous AI generation pipeline for a topic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateCourseRequest'
+      responses:
+        '202':
+          description: Generation accepted, poll /jobs/{pipelineRunId}/status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateCourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /jobs/{pipelineRunId}/status:
+    get:
+      operationId: getJobStatus
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/PipelineRunIdInPath'
+      responses:
+        '200':
+          description: Current status of the generation job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/jobs:
+    get:
+      operationId: listAdminJobs
+      tags: [admin]
+      description: Admin only. Most recent 50 pipeline runs across all users.
+      responses:
+        '200':
+          description: Recent pipeline runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PipelineRunSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/errors:
+    get:
+      operationId: listAdminErrors
+      tags: [admin]
+      description: Admin only. Most recent 50 FAILED job steps across all users.
+      responses:
+        '200':
+          description: Recent job errors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JobErrorSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      description: Admin only.
+      responses:
+        '200':
+          description: Aggregate pipeline stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/jobs/{pipelineRunId}/cancel:
+    post:
+      operationId: cancelAdminJob
+      tags: [admin]
+      description: Admin only.
+      parameters:
+        - $ref: '#/components/parameters/PipelineRunIdInPath'
+      responses:
+        '204':
+          description: Cancelled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/jobs/cancel-all:
+    post:
+      operationId: cancelAllAdminJobs
+      tags: [admin]
+      description: Admin only. Cancels every active (PENDING/RUNNING) run.
+      responses:
+        '200':
+          description: Number of runs cancelled
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: int32
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/me/api-key:
+    get:
+      operationId: getApiKeyStatus
+      tags: [api-keys]
+      responses:
+        '200':
+          description: Whether a personal API key is configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      operationId: setApiKey
+      tags: [api-keys]
+      description: Provider is always "gemini" server-side; not client-supplied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetApiKeyRequest'
+      responses:
+        '200':
+          description: Key stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      operationId: deleteApiKey
+      tags: [api-keys]
+      responses:
+        '204':
+          description: Key removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CourseId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CourseIdInPath:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ModuleIdInPath:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LessonIdInPath:
+      name: lessonId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PipelineRunIdInPath:
+      name: pipelineRunId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token
+    Forbidden:
+      description: Authenticated but not authorized (e.g. not an admin)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not found, or not owned by the current user
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    CreateCourseRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    CourseResponse:
+      type: object
+      required: [id, title, description, tags, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CourseTreeResponse:
+      type: object
+      required: [id, title, description, tags, createdAt, modules]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleWithLessonsResponse'
+
+    CourseExportResponse:
+      type: object
+      required: [title, description, tags, modules]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseExportResponseModuleExport'
+
+    CourseExportResponseModuleExport:
+      type: object
+      required: [title, orderIndex, lessons]
+      properties:
+        title:
+          type: string
+        orderIndex:
+          type: integer
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseExportResponseLessonExport'
+
+    CourseExportResponseLessonExport:
+      type: object
+      required: [title, orderIndex, objectives, content, isEnriched]
+      properties:
+        title:
+          type: string
+        orderIndex:
+          type: integer
+        objectives:
+          type: array
+          items:
+            type: string
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        isEnriched:
+          type: boolean
+
+    CreateModuleRequest:
+      type: object
+      required: [title, orderIndex]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        orderIndex:
+          type: integer
+
+    ModuleResponse:
+      type: object
+      required: [id, title, orderIndex]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        orderIndex:
+          type: integer
+
+    ModuleWithLessonsResponse:
+      type: object
+      required: [id, title, orderIndex, lessons]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        orderIndex:
+          type: integer
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonSummaryResponse'
+
+    CreateLessonRequest:
+      type: object
+      required: [title, orderIndex]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        orderIndex:
+          type: integer
+        objectives:
+          type: array
+          items:
+            type: string
+          nullable: true
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+          nullable: true
+
+    LessonResponse:
+      type: object
+      required: [id, title, orderIndex, objectives, content, isEnriched, completed, bookmarked]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        orderIndex:
+          type: integer
+        objectives:
+          type: array
+          items:
+            type: string
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        isEnriched:
+          type: boolean
+        completed:
+          type: boolean
+        bookmarked:
+          type: boolean
+
+    LessonSummaryResponse:
+      type: object
+      required: [id, title, orderIndex, isEnriched, completed, bookmarked]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        orderIndex:
+          type: integer
+        isEnriched:
+          type: boolean
+        completed:
+          type: boolean
+        bookmarked:
+          type: boolean
+
+    UpdateLessonStateRequest:
+      type: object
+      description: Omit a field to leave it unchanged; include it to set that field.
+      properties:
+        completed:
+          type: boolean
+        bookmarked:
+          type: boolean
+
+    GenerateCourseRequest:
+      type: object
+      required: [topic]
+      properties:
+        topic:
+          type: string
+          minLength: 1
+
+    GenerateCourseResponse:
+      type: object
+      required: [pipelineRunId]
+      properties:
+        pipelineRunId:
+          type: string
+          format: uuid
+
+    JobStatusResponse:
+      type: object
+      required: [pipelineRunId, status, currentStep, position, courseId, error, usingDefaultKey, keyFallbackReason]
+      properties:
+        pipelineRunId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        currentStep:
+          allOf:
+            - $ref: '#/components/schemas/JobStepType'
+          nullable: true
+        position:
+          type: integer
+          format: int64
+        courseId:
+          type: string
+          format: uuid
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        usingDefaultKey:
+          type: boolean
+        keyFallbackReason:
+          type: string
+          nullable: true
+
+    PipelineRunSummary:
+      type: object
+      required: [id, ownerId, status, courseId, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        courseId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    JobErrorSummary:
+      type: object
+      required: [stepId, pipelineRunId, type, error, attempt, createdAt]
+      properties:
+        stepId:
+          type: string
+          format: uuid
+        pipelineRunId:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/JobStepType'
+        error:
+          type: string
+        attempt:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    AdminStatsResponse:
+      type: object
+      required: [totalRuns, doneRuns, failedRuns]
+      properties:
+        totalRuns:
+          type: integer
+          format: int64
+        doneRuns:
+          type: integer
+          format: int64
+        failedRuns:
+          type: integer
+          format: int64
+
+    SetApiKeyRequest:
+      type: object
+      required: [apiKey]
+      properties:
+        apiKey:
+          type: string
+          minLength: 1
+
+    ApiKeyStatusResponse:
+      type: object
+      required: [configured]
+      properties:
+        configured:
+          type: boolean
+
+    JobStatus:
+      type: string
+      enum: [PENDING, RUNNING, DONE, FAILED, CANCELLED]
+
+    JobStepType:
+      type: string
+      enum: [OUTLINE, LESSON_CONTENT, ENRICHMENT]
+
+    ContentBlock:
+      oneOf:
+        - $ref: '#/components/schemas/HeadingBlock'
+        - $ref: '#/components/schemas/ParagraphBlock'
+        - $ref: '#/components/schemas/CodeBlock'
+        - $ref: '#/components/schemas/VideoBlock'
+        - $ref: '#/components/schemas/McqBlock'
+      discriminator:
+        propertyName: type
+        mapping:
+          heading: '#/components/schemas/HeadingBlock'
+          paragraph: '#/components/schemas/ParagraphBlock'
+          code: '#/components/schemas/CodeBlock'
+          video: '#/components/schemas/VideoBlock'
+          mcq: '#/components/schemas/McqBlock'
+
+    HeadingBlock:
+      type: object
+      required: [type, text]
+      properties:
+        type:
+          type: string
+        text:
+          type: string
+
+    ParagraphBlock:
+      type: object
+      required: [type, text]
+      properties:
+        type:
+          type: string
+        text:
+          type: string
+
+    CodeBlock:
+      type: object
+      required: [type, language, text]
+      properties:
+        type:
+          type: string
+        language:
+          type: string
+        text:
+          type: string
+
+    VideoBlock:
+      type: object
+      required: [type, query]
+      properties:
+        type:
+          type: string
+        query:
+          type: string
+          description: A YouTube search query string, never a direct URL.
+
+    McqBlock:
+      type: object
+      required: [type, question, options, answer, explanation]
+      properties:
+        type:
+          type: string
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        answer:
+          type: integer
+          description: 0-based index into options.
+        explanation:
+          type: string

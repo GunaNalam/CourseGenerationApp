@@ -1,6 +1,6 @@
 package com.learnify.service;
 
-import com.learnify.dto.request.CreateModuleRequest;
+import com.learnify.api.model.CreateModuleRequest;
 import com.learnify.entity.Course;
 import com.learnify.entity.Module;
 import com.learnify.exception.NotFoundException;
@@ -30,8 +30,8 @@ public class ModuleService {
     public Module create(UUID courseId, CreateModuleRequest request) {
         Course course = courseService.getOwnedOrThrow(courseId);
         Module module = new Module();
-        module.setTitle(request.title());
-        module.setOrderIndex(request.orderIndex());
+        module.setTitle(request.getTitle());
+        module.setOrderIndex(request.getOrderIndex());
         module.setCourse(course);
         return moduleRepository.save(module);
     }

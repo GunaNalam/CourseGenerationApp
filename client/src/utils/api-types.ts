@@ -1,109 +1,34 @@
-export interface CourseResponse {
-  id: string
-  title: string
-  description: string | null
-  tags: string[]
-  createdAt: string
-}
+// Derived from server/openapi.yaml via `npm run generate:types` -> api-schema.generated.ts.
+// Don't hand-edit the generated file - change openapi.yaml and re-run the script instead.
+import type { components } from './api-schema.generated'
 
-export interface ModuleResponse {
-  id: string
-  title: string
-  orderIndex: number
-}
+export type CourseResponse = components['schemas']['CourseResponse']
+export type CourseTreeResponse = components['schemas']['CourseTreeResponse']
+export type CourseExportResponse = components['schemas']['CourseExportResponse']
+export type ModuleWithLessonsResponse = components['schemas']['ModuleWithLessonsResponse']
+export type LessonSummaryResponse = components['schemas']['LessonSummaryResponse']
+export type UpdateLessonStateRequest = components['schemas']['UpdateLessonStateRequest']
+export type GenerateCourseResponse = components['schemas']['GenerateCourseResponse']
+export type JobStatusResponse = components['schemas']['JobStatusResponse']
+export type ApiKeyStatusResponse = components['schemas']['ApiKeyStatusResponse']
+export type PipelineRunSummary = components['schemas']['PipelineRunSummary']
+export type JobErrorSummary = components['schemas']['JobErrorSummary']
+export type AdminStatsResponse = components['schemas']['AdminStatsResponse']
 
+// The spec loosens each content-block variant's `type` field to a plain string -
+// an openapi-generator limitation, not a real backend shape: a discriminated oneOf's
+// parent Java interface can't have variants returning a narrower enum type than its
+// own abstract getter. Kept hand-written here so the frontend still gets real
+// discriminated-union narrowing in switch(block.type). Matches what the backend
+// actually persists (server/src/main/resources/prompts/lesson-prompt.json), minus
+// `videoId`/`embedUrl` - fields the backend never sends (see VideoBlock docs below).
 export type ContentBlock =
   | { type: 'heading'; text: string }
   | { type: 'paragraph'; text: string }
   | { type: 'code'; language: string; text: string }
-  | { type: 'video'; query: string; videoId?: string; embedUrl?: string }
+  | { type: 'video'; query: string }
   | { type: 'mcq'; question: string; options: string[]; answer: number; explanation: string }
   | { type: string; [key: string]: unknown }
 
-export interface LessonSummaryResponse {
-  id: string
-  title: string
-  orderIndex: number
-  isEnriched: boolean
-  completed: boolean
-  bookmarked: boolean
-}
-
-export interface LessonResponse extends LessonSummaryResponse {
-  objectives: string[]
-  content: ContentBlock[]
-}
-
-export interface ModuleWithLessonsResponse extends ModuleResponse {
-  lessons: LessonSummaryResponse[]
-}
-
-export interface CourseTreeResponse extends CourseResponse {
-  modules: ModuleWithLessonsResponse[]
-}
-
-export interface UpdateLessonStateRequest {
-  completed?: boolean
-  bookmarked?: boolean
-}
-
-export interface GenerateCourseRequest {
-  topic: string
-}
-
-export interface GenerateCourseResponse {
-  pipelineRunId: string
-}
-
-export type PipelineStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'CANCELLED'
-
-export interface JobStatusResponse {
-  pipelineRunId: string
-  status: PipelineStatus
-  currentStep: string | null
-  position: number
-  courseId: string | null
-  error: string | null
-  usingDefaultKey: boolean
-  keyFallbackReason: string | null
-}
-
-export interface ApiKeyStatusResponse {
-  configured: boolean
-}
-
-export interface CourseExportModule {
-  title: string
-  orderIndex: number
-  lessons: (LessonResponse & { orderIndex: number })[]
-}
-
-export interface CourseExportResponse {
-  title: string
-  description: string | null
-  tags: string[]
-  modules: CourseExportModule[]
-}
-
-export interface PipelineRunSummary {
-  id: string
-  ownerId: string
-  status: PipelineStatus
-  courseId: string | null
-  createdAt: string
-}
-
-export interface JobErrorSummary {
-  stepId: string
-  pipelineRunId: string
-  type: string
-  error: string | null
-  attempt: number
-  createdAt: string
-}
-
-export interface AdminStatsResponse {
-  totalRuns: number
-  doneRuns: number
-  failedRuns: number
-}
+type GeneratedLessonResponse = components['schemas']['LessonResponse']
+export type LessonResponse = Omit<GeneratedLessonResponse, 'content'> & { content: ContentBlock[] }

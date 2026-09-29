@@ -1,6 +1,9 @@
 package com.learnify.service;
 
-import com.learnify.dto.request.CreateLessonRequest;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnify.api.model.ContentBlock;
+import com.learnify.api.model.CreateLessonRequest;
 import com.learnify.entity.Lesson;
 import com.learnify.entity.Module;
 import com.learnify.exception.NotFoundException;
@@ -8,6 +11,7 @@ import com.learnify.repository.LessonRepository;
 import com.learnify.security.CurrentUserProvider;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -17,28 +21,32 @@ public class LessonService {
     private final LessonRepository lessonRepository;
     private final ModuleService moduleService;
     private final CurrentUserProvider currentUserProvider;
+    private final ObjectMapper objectMapper;
 
     public LessonService(
         LessonRepository lessonRepository,
         ModuleService moduleService,
-        CurrentUserProvider currentUserProvider
+        CurrentUserProvider currentUserProvider,
+        ObjectMapper objectMapper
     ) {
         this.lessonRepository = lessonRepository;
         this.moduleService = moduleService;
         this.currentUserProvider = currentUserProvider;
+        this.objectMapper = objectMapper;
     }
 
     public Lesson create(UUID moduleId, CreateLessonRequest request) {
         Module module = moduleService.getOwnedOrThrow(moduleId);
         Lesson lesson = new Lesson();
-        lesson.setTitle(request.title());
-        lesson.setOrderIndex(request.orderIndex());
+        lesson.setTitle(request.getTitle());
+        lesson.setOrderIndex(request.getOrderIndex());
         lesson.setModule(module);
-        if (request.objectives() != null) {
-            lesson.setObjectives(new ArrayList<>(request.objectives()));
+        if (request.getObjectives() != null) {
+            lesson.setObjectives(new ArrayList<>(request.getObjectives()));
         }
-        if (request.content() != null) {
-            lesson.setContent(new ArrayList<>(request.content()));
+        if (request.getContent() != null) {
+            List<Map<String, Object>> content = request.getContent().stream().map(this::toMap).toList();
+            lesson.setContent(new ArrayList<>(content));
         }
         return lessonRepository.save(lesson);
     }
@@ -68,5 +76,9 @@ public class LessonService {
         lesson.setHinglishText(hinglishText);
         lesson.setHinglishAudio(hinglishAudio);
         lessonRepository.save(lesson);
+    }
+
+    private Map<String, Object> toMap(ContentBlock block) {
+        return objectMapper.convertValue(block, new TypeReference<Map<String, Object>>() { });
     }
 }

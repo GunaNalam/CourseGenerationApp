@@ -1,23 +1,20 @@
 package com.learnify.controller;
 
-import com.learnify.dto.request.CreateModuleRequest;
-import com.learnify.dto.response.ModuleResponse;
+import com.learnify.api.ModulesApi;
+import com.learnify.api.model.CreateModuleRequest;
+import com.learnify.api.model.ModuleResponse;
+import com.learnify.entity.Module;
 import com.learnify.service.ModuleService;
-import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/courses/{courseId}/modules")
-public class ModuleController {
+@RequestMapping("/api/v1")
+public class ModuleController implements ModulesApi {
 
     private final ModuleService moduleService;
 
@@ -25,17 +22,19 @@ public class ModuleController {
         this.moduleService = moduleService;
     }
 
-    @PostMapping
-    public ResponseEntity<ModuleResponse> create(
-        @PathVariable UUID courseId,
-        @Valid @RequestBody CreateModuleRequest request
-    ) {
-        ModuleResponse response = ModuleResponse.from(moduleService.create(courseId, request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    @Override
+    public ResponseEntity<ModuleResponse> createModule(UUID courseId, CreateModuleRequest createModuleRequest) {
+        Module module = moduleService.create(courseId, createModuleRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(module));
     }
 
-    @GetMapping
-    public List<ModuleResponse> list(@PathVariable UUID courseId) {
-        return moduleService.listByCourse(courseId).stream().map(ModuleResponse::from).toList();
+    @Override
+    public ResponseEntity<List<ModuleResponse>> listModules(UUID courseId) {
+        var responses = moduleService.listByCourse(courseId).stream().map(this::toResponse).toList();
+        return ResponseEntity.ok(responses);
+    }
+
+    private ModuleResponse toResponse(Module module) {
+        return new ModuleResponse(module.getId(), module.getTitle(), module.getOrderIndex());
     }
 }

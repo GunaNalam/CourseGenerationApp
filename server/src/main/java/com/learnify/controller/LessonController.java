@@ -1,78 +1,91 @@
 package com.learnify.controller;
 
-import com.learnify.dto.request.CreateLessonRequest;
-import com.learnify.dto.request.UpdateLessonStateRequest;
-import com.learnify.dto.response.LessonResponse;
-import com.learnify.dto.response.LessonSummaryResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnify.api.LessonsApi;
+import com.learnify.api.model.ContentBlock;
+import com.learnify.api.model.CreateLessonRequest;
+import com.learnify.api.model.LessonResponse;
+import com.learnify.api.model.LessonSummaryResponse;
+import com.learnify.api.model.UpdateLessonStateRequest;
+import com.learnify.entity.Lesson;
 import com.learnify.service.LessonAudioService;
 import com.learnify.service.LessonService;
-import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/courses/{courseId}/modules/{moduleId}/lessons")
-public class LessonController {
+@RequestMapping("/api/v1")
+public class LessonController implements LessonsApi {
 
     private final LessonService lessonService;
     private final LessonAudioService lessonAudioService;
+    private final ObjectMapper objectMapper;
 
-    public LessonController(LessonService lessonService, LessonAudioService lessonAudioService) {
+    public LessonController(LessonService lessonService, LessonAudioService lessonAudioService, ObjectMapper objectMapper) {
         this.lessonService = lessonService;
         this.lessonAudioService = lessonAudioService;
+        this.objectMapper = objectMapper;
     }
 
-    @PostMapping
-    public ResponseEntity<LessonResponse> create(
-        @PathVariable UUID courseId,
-        @PathVariable UUID moduleId,
-        @Valid @RequestBody CreateLessonRequest request
+    @Override
+    public ResponseEntity<LessonResponse> createLesson(UUID courseId, UUID moduleId, CreateLessonRequest createLessonRequest) {
+        Lesson lesson = lessonService.create(moduleId, createLessonRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(lesson));
+    }
+
+    @Override
+    public ResponseEntity<List<LessonSummaryResponse>> listLessons(UUID courseId, UUID moduleId) {
+        var responses = lessonService.listByModule(moduleId).stream().map(this::toSummary).toList();
+        return ResponseEntity.ok(responses);
+    }
+
+    @Override
+    public ResponseEntity<LessonResponse> getLesson(UUID courseId, UUID moduleId, UUID lessonId) {
+        return ResponseEntity.ok(toResponse(lessonService.getOwnedOrThrow(lessonId)));
+    }
+
+    @Override
+    public ResponseEntity<LessonResponse> updateLessonState(
+        UUID courseId, UUID moduleId, UUID lessonId, UpdateLessonStateRequest updateLessonStateRequest
     ) {
-        LessonResponse response = LessonResponse.from(lessonService.create(moduleId, request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        var updated = lessonService.updateState(
+            lessonId, updateLessonStateRequest.getCompleted(), updateLessonStateRequest.getBookmarked()
+        );
+        return ResponseEntity.ok(toResponse(updated));
     }
 
-    @GetMapping
-    public List<LessonSummaryResponse> list(@PathVariable UUID courseId, @PathVariable UUID moduleId) {
-        return lessonService.listByModule(moduleId).stream().map(LessonSummaryResponse::from).toList();
-    }
-
-    @GetMapping("/{lessonId}")
-    public LessonResponse get(
-        @PathVariable UUID courseId,
-        @PathVariable UUID moduleId,
-        @PathVariable UUID lessonId
-    ) {
-        return LessonResponse.from(lessonService.getOwnedOrThrow(lessonId));
-    }
-
-    @PatchMapping("/{lessonId}")
-    public LessonResponse updateState(
-        @PathVariable UUID courseId,
-        @PathVariable UUID moduleId,
-        @PathVariable UUID lessonId,
-        @RequestBody UpdateLessonStateRequest request
-    ) {
-        return LessonResponse.from(lessonService.updateState(lessonId, request.completed(), request.bookmarked()));
-    }
-
-    @GetMapping(value = "/{lessonId}/audio", produces = "audio/wav")
-    public ResponseEntity<byte[]> hinglishAudio(
-        @PathVariable UUID courseId,
-        @PathVariable UUID moduleId,
-        @PathVariable UUID lessonId
-    ) {
+    @Override
+    public ResponseEntity<Resource> getLessonAudio(UUID courseId, UUID moduleId, UUID lessonId) {
         byte[] wav = lessonAudioService.generateHinglishAudio(lessonId);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(wav);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType("audio/wav"))
+            .body(new ByteArrayResource(wav));
+    }
+
+    private LessonResponse toResponse(Lesson lesson) {
+        List<ContentBlock> content = lesson.getContent().stream().map(this::toContentBlock).toList();
+        return new LessonResponse(
+            lesson.getId(), lesson.getTitle(), lesson.getOrderIndex(), lesson.getObjectives(), content,
+            lesson.isEnriched(), lesson.isCompleted(), lesson.isBookmarked()
+        );
+    }
+
+    private LessonSummaryResponse toSummary(Lesson lesson) {
+        return new LessonSummaryResponse(
+            lesson.getId(), lesson.getTitle(), lesson.getOrderIndex(),
+            lesson.isEnriched(), lesson.isCompleted(), lesson.isBookmarked()
+        );
+    }
+
+    private ContentBlock toContentBlock(Map<String, Object> map) {
+        return objectMapper.convertValue(map, ContentBlock.class);
     }
 }

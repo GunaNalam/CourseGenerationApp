@@ -1,31 +1,30 @@
 package com.learnify.controller;
 
-import com.learnify.dto.request.CreateCourseRequest;
-import com.learnify.dto.response.CourseExportResponse;
-import com.learnify.dto.response.CourseResponse;
-import com.learnify.dto.response.CourseTreeResponse;
-import com.learnify.dto.response.LessonSummaryResponse;
-import com.learnify.dto.response.ModuleWithLessonsResponse;
+import com.learnify.api.CoursesApi;
+import com.learnify.api.model.CourseExportResponse;
+import com.learnify.api.model.CourseResponse;
+import com.learnify.api.model.CourseTreeResponse;
+import com.learnify.api.model.CreateCourseRequest;
+import com.learnify.api.model.LessonSummaryResponse;
+import com.learnify.api.model.ModuleWithLessonsResponse;
+import com.learnify.entity.Course;
+import com.learnify.entity.Lesson;
 import com.learnify.service.CourseExportService;
 import com.learnify.service.CourseService;
 import com.learnify.service.CourseService.CourseTree;
-import jakarta.validation.Valid;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/courses")
-public class CourseController {
+@RequestMapping("/api/v1")
+public class CourseController implements CoursesApi {
 
     private final CourseService courseService;
     private final CourseExportService courseExportService;
@@ -35,44 +34,64 @@ public class CourseController {
         this.courseExportService = courseExportService;
     }
 
-    @PostMapping
-    public ResponseEntity<CourseResponse> create(@Valid @RequestBody CreateCourseRequest request) {
-        CourseResponse response = CourseResponse.from(courseService.create(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    @Override
+    public ResponseEntity<CourseResponse> createCourse(CreateCourseRequest createCourseRequest) {
+        Course course = courseService.create(createCourseRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(course));
     }
 
-    @GetMapping("/{id}")
-    public CourseResponse get(@PathVariable UUID id) {
-        return CourseResponse.from(courseService.getOwnedOrThrow(id));
+    @Override
+    public ResponseEntity<CourseResponse> getCourse(UUID id) {
+        return ResponseEntity.ok(toResponse(courseService.getOwnedOrThrow(id)));
     }
 
-    @GetMapping
-    public List<CourseResponse> listMine() {
-        return courseService.listMine().stream().map(CourseResponse::from).toList();
+    @Override
+    public ResponseEntity<List<CourseResponse>> listMyCourses() {
+        var responses = courseService.listMine().stream().map(this::toResponse).toList();
+        return ResponseEntity.ok(responses);
     }
 
-    @GetMapping("/{id}/export")
-    public CourseExportResponse export(@PathVariable UUID id) {
-        return courseExportService.export(id);
+    @Override
+    public ResponseEntity<CourseExportResponse> exportCourse(UUID id) {
+        return ResponseEntity.ok(courseExportService.export(id));
     }
 
-    @GetMapping("/{id}/tree")
-    public CourseTreeResponse tree(@PathVariable UUID id) {
+    @Override
+    public ResponseEntity<CourseTreeResponse> getCourseTree(UUID id) {
         CourseTree tree = courseService.getTree(id);
 
         Map<UUID, List<LessonSummaryResponse>> lessonsByModuleId = tree.lessons().stream()
             .collect(Collectors.groupingBy(
                 lesson -> lesson.getModule().getId(),
-                Collectors.mapping(LessonSummaryResponse::from, Collectors.toList())
+                Collectors.mapping(this::toSummary, Collectors.toList())
             ));
 
         List<ModuleWithLessonsResponse> moduleResponses = tree.modules().stream()
-            .map(module -> ModuleWithLessonsResponse.from(
-                module,
+            .map(module -> new ModuleWithLessonsResponse(
+                module.getId(), module.getTitle(), module.getOrderIndex(),
                 lessonsByModuleId.getOrDefault(module.getId(), List.of())
             ))
             .toList();
 
-        return CourseTreeResponse.from(tree.course(), moduleResponses);
+        Course course = tree.course();
+        var response = new CourseTreeResponse(
+            course.getId(), course.getTitle(), course.getDescription(), course.getTags(),
+            course.getCreatedAt().atOffset(ZoneOffset.UTC), moduleResponses
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    private CourseResponse toResponse(Course course) {
+        return new CourseResponse(
+            course.getId(), course.getTitle(), course.getDescription(), course.getTags(),
+            course.getCreatedAt().atOffset(ZoneOffset.UTC)
+        );
+    }
+
+    private LessonSummaryResponse toSummary(Lesson lesson) {
+        return new LessonSummaryResponse(
+            lesson.getId(), lesson.getTitle(), lesson.getOrderIndex(),
+            lesson.isEnriched(), lesson.isCompleted(), lesson.isBookmarked()
+        );
     }
 }

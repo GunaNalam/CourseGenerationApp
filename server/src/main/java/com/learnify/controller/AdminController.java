@@ -2,29 +2,29 @@ package com.learnify.controller;
 
 import com.learnify.admin.AdminAccessDeniedException;
 import com.learnify.admin.AdminAuthorizer;
-import com.learnify.dto.response.AdminStatsResponse;
-import com.learnify.dto.response.JobErrorSummary;
-import com.learnify.dto.response.PipelineRunSummary;
+import com.learnify.api.AdminApi;
+import com.learnify.api.model.AdminStatsResponse;
+import com.learnify.api.model.JobErrorSummary;
+import com.learnify.api.model.PipelineRunSummary;
 import com.learnify.entity.JobStep;
 import com.learnify.entity.PipelineRun;
 import com.learnify.pipeline.JobStatus;
 import com.learnify.repository.JobStepRepository;
 import com.learnify.repository.PipelineRunRepository;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/admin")
-public class AdminController {
+@RequestMapping("/api/v1")
+public class AdminController implements AdminApi {
 
     private final PipelineRunRepository pipelineRunRepository;
     private final JobStepRepository jobStepRepository;
@@ -40,49 +40,52 @@ public class AdminController {
         this.adminAuthorizer = adminAuthorizer;
     }
 
-    @GetMapping("/jobs")
-    public List<PipelineRunSummary> jobs(@AuthenticationPrincipal Jwt jwt) {
-        requireAdmin(jwt);
-        return pipelineRunRepository.findAllByOrderByCreatedAtDesc().stream()
+    @Override
+    public ResponseEntity<List<PipelineRunSummary>> listAdminJobs() {
+        requireAdmin();
+        var responses = pipelineRunRepository.findAllByOrderByCreatedAtDesc().stream()
             .limit(50)
-            .map(PipelineRunSummary::from)
+            .map(this::toSummary)
             .toList();
+        return ResponseEntity.ok(responses);
     }
 
-    @GetMapping("/errors")
-    public List<JobErrorSummary> errors(@AuthenticationPrincipal Jwt jwt) {
-        requireAdmin(jwt);
-        return jobStepRepository.findByStatusOrderByCreatedAtDesc(JobStatus.FAILED).stream()
+    @Override
+    public ResponseEntity<List<JobErrorSummary>> listAdminErrors() {
+        requireAdmin();
+        var responses = jobStepRepository.findByStatusOrderByCreatedAtDesc(JobStatus.FAILED).stream()
             .limit(50)
-            .map(JobErrorSummary::from)
+            .map(this::toErrorSummary)
             .toList();
+        return ResponseEntity.ok(responses);
     }
 
-    @GetMapping("/stats")
-    public AdminStatsResponse stats(@AuthenticationPrincipal Jwt jwt) {
-        requireAdmin(jwt);
-        return new AdminStatsResponse(
+    @Override
+    public ResponseEntity<AdminStatsResponse> getAdminStats() {
+        requireAdmin();
+        var response = new AdminStatsResponse(
             pipelineRunRepository.count(),
             pipelineRunRepository.countByStatus(JobStatus.DONE),
             pipelineRunRepository.countByStatus(JobStatus.FAILED)
         );
+        return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/jobs/{pipelineRunId}/cancel")
+    @Override
     @Transactional
-    public ResponseEntity<Void> cancelJob(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID pipelineRunId) {
-        requireAdmin(jwt);
+    public ResponseEntity<Void> cancelAdminJob(UUID pipelineRunId) {
+        requireAdmin();
         cancelRun(pipelineRunId);
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/jobs/cancel-all")
+    @Override
     @Transactional
-    public int cancelAllActiveJobs(@AuthenticationPrincipal Jwt jwt) {
-        requireAdmin(jwt);
+    public ResponseEntity<Integer> cancelAllAdminJobs() {
+        requireAdmin();
         List<PipelineRun> active = pipelineRunRepository.findAllByStatusIn(List.of(JobStatus.PENDING, JobStatus.RUNNING));
         active.forEach(run -> cancelRun(run.getId()));
-        return active.size();
+        return ResponseEntity.ok(active.size());
     }
 
     private void cancelRun(UUID pipelineRunId) {
@@ -99,9 +102,38 @@ public class AdminController {
         }
     }
 
-    private void requireAdmin(Jwt jwt) {
+    private PipelineRunSummary toSummary(PipelineRun run) {
+        return new PipelineRunSummary(
+            run.getId(), run.getOwnerId(), com.learnify.api.model.JobStatus.valueOf(run.getStatus().name()),
+            run.getCourseId(), run.getCreatedAt().atOffset(ZoneOffset.UTC)
+        );
+    }
+
+    private JobErrorSummary toErrorSummary(JobStep step) {
+        return new JobErrorSummary(
+            step.getId(), step.getPipelineRunId(), com.learnify.api.model.JobStepType.valueOf(step.getType().name()),
+            step.getError(), step.getAttempt(), step.getCreatedAt().atOffset(ZoneOffset.UTC)
+        );
+    }
+
+    private void requireAdmin() {
+        Jwt jwt = currentJwt();
         if (jwt == null || !adminAuthorizer.isAdmin(jwt.getSubject())) {
             throw new AdminAccessDeniedException("Admin access required");
         }
+    }
+
+    /**
+     * The generated AdminApi interface methods take no parameters (an OpenAPI spec has no way to
+     * express "inject the resolved JWT principal"), so this replaces the old @AuthenticationPrincipal
+     * Jwt parameter - same JWT, same claims, just read from the security context instead of the
+     * method signature.
+     */
+    private Jwt currentJwt() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return jwtAuthenticationToken.getToken();
+        }
+        return null;
     }
 }

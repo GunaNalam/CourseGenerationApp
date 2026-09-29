@@ -1,6 +1,6 @@
 package com.learnify.service;
 
-import com.learnify.dto.request.CreateCourseRequest;
+import com.learnify.api.model.CreateCourseRequest;
 import com.learnify.entity.Course;
 import com.learnify.entity.Lesson;
 import com.learnify.entity.Module;
@@ -36,11 +36,11 @@ public class CourseService {
 
     public Course create(CreateCourseRequest request) {
         Course course = new Course();
-        course.setTitle(request.title());
-        course.setDescription(request.description());
+        course.setTitle(request.getTitle());
+        course.setDescription(request.getDescription());
         course.setOwnerId(currentUserProvider.currentUserId());
-        if (request.tags() != null) {
-            course.setTags(request.tags());
+        if (request.getTags() != null) {
+            course.setTags(request.getTags());
         }
         return courseRepository.save(course);
     }

@@ -1,24 +1,20 @@
 package com.learnify.controller;
 
+import com.learnify.api.ApiKeysApi;
+import com.learnify.api.model.ApiKeyStatusResponse;
+import com.learnify.api.model.SetApiKeyRequest;
 import com.learnify.apikey.ApiKeyEncryptor;
-import com.learnify.dto.request.SetApiKeyRequest;
-import com.learnify.dto.response.ApiKeyStatusResponse;
 import com.learnify.entity.UserApiKey;
 import com.learnify.repository.UserApiKeyRepository;
 import com.learnify.security.CurrentUserProvider;
-import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/users/me/api-key")
-public class ApiKeyController {
+@RequestMapping("/api/v1")
+public class ApiKeyController implements ApiKeysApi {
 
     private static final String DEFAULT_PROVIDER = "gemini";
 
@@ -36,27 +32,27 @@ public class ApiKeyController {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @GetMapping
-    public ApiKeyStatusResponse status() {
+    @Override
+    public ResponseEntity<ApiKeyStatusResponse> getApiKeyStatus() {
         boolean configured = userApiKeyRepository.findByUserId(currentUserProvider.currentUserId()).isPresent();
-        return new ApiKeyStatusResponse(configured);
+        return ResponseEntity.ok(new ApiKeyStatusResponse(configured));
     }
 
-    @PutMapping
+    @Override
     @Transactional
-    public ApiKeyStatusResponse set(@Valid @RequestBody SetApiKeyRequest request) {
+    public ResponseEntity<ApiKeyStatusResponse> setApiKey(SetApiKeyRequest setApiKeyRequest) {
         var ownerId = currentUserProvider.currentUserId();
         UserApiKey key = userApiKeyRepository.findByUserId(ownerId).orElseGet(UserApiKey::new);
         key.setUserId(ownerId);
         key.setProvider(DEFAULT_PROVIDER);
-        key.setEncryptedKey(encryptor.encrypt(request.apiKey()));
+        key.setEncryptedKey(encryptor.encrypt(setApiKeyRequest.getApiKey()));
         userApiKeyRepository.save(key);
-        return new ApiKeyStatusResponse(true);
+        return ResponseEntity.ok(new ApiKeyStatusResponse(true));
     }
 
-    @DeleteMapping
+    @Override
     @Transactional
-    public ResponseEntity<Void> delete() {
+    public ResponseEntity<Void> deleteApiKey() {
         userApiKeyRepository.deleteByUserId(currentUserProvider.currentUserId());
         return ResponseEntity.noContent().build();
     }

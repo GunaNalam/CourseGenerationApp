@@ -21,13 +21,7 @@ export function LessonRenderer({ content }: LessonRendererProps) {
           case 'code':
             return <CodeBlock key={index} language={block.language as string} text={block.text as string} />
           case 'video':
-            return (
-              <VideoBlock
-                key={index}
-                query={block.query as string}
-                embedUrl={block.embedUrl as string | undefined}
-              />
-            )
+            return <VideoBlock key={index} query={block.query as string} />
           case 'mcq':
             return (
               <MCQBlock
