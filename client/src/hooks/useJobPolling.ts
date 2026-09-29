@@ -3,7 +3,7 @@ import { useApi } from './useApi'
 import { API_ROUTES } from '../utils/api-routes'
 import type { JobStatusResponse } from '../utils/api-types'
 
-const POLL_INTERVAL_MS = 2000
+const POLL_INTERVAL_MS = 5000
 
 export function useJobPolling(pipelineRunId: string | null) {
   const api = useApi()
